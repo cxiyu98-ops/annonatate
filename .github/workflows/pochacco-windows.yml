@@ -1,0 +1,700 @@
+name: 帕恰狗 Windows 安装包
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PET_ROOT: ${{ runner.temp }}/pochacco-pet
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 生成独立项目
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:PET_ROOT | Out-Null
+          $generator = @'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const zlib = require('node:zlib');
+          const root = process.env.PET_ROOT;
+
+          function write(name, value) {
+            const target = path.join(root, name);
+            fs.mkdirSync(path.dirname(target), {recursive:true});
+            fs.writeFileSync(target, value);
+          }
+
+          const pkg = {
+            name: 'pochacco-desktop-pet',
+            version: '1.0.0',
+            private: true,
+            description: 'Pochacco desktop companion',
+            author: 'Desktop Pet',
+            main: 'src/main.cjs',
+            scripts: {
+              start: 'electron .',
+              test: 'node --test test/model.test.cjs',
+              'test:app': 'electron . --smoke',
+              'build:win': 'electron-builder --win --x64 --publish never'
+            },
+            devDependencies: {
+              electron: '44.5.1',
+              'electron-builder': '26.0.12'
+            },
+            build: {
+              appId: 'local.pochacco.desktoppet',
+              productName: 'PochaccoPet',
+              directories: {output:'dist'},
+              files: ['src/**/*', 'assets/**/*', 'package.json'],
+              artifactName: 'PochaccoPet-${version}-${arch}.${ext}',
+              win: {
+                target: [
+                  {target:'nsis', arch:['x64']},
+                  {target:'zip', arch:['x64']}
+                ],
+                signAndEditExecutable: false
+              },
+              nsis: {
+                oneClick: false,
+                perMachine: false,
+                allowToChangeInstallationDirectory: true,
+                createDesktopShortcut: true,
+                createStartMenuShortcut: true,
+                shortcutName: '帕恰狗桌面宠物'
+              }
+            }
+          };
+          write('package.json', JSON.stringify(pkg, null, 2));
+
+          write('src/model.cjs', `
+          const defaults = {
+            top:true, auto:true, scale:100, speed:35
+          };
+          function normalize(value={}) {
+            if (!value || typeof value !== 'object') value={};
+            return {
+              top: typeof value.top==='boolean' ? value.top : defaults.top,
+              auto: typeof value.auto==='boolean' ? value.auto : defaults.auto,
+              scale: Number.isFinite(value.scale)
+                ? Math.max(75,Math.min(150,Math.round(value.scale)))
+                : defaults.scale,
+              speed: Number.isFinite(value.speed)
+                ? Math.max(15,Math.min(90,Math.round(value.speed)))
+                : defaults.speed
+            };
+          }
+          function clamp(x,y,w,h,a) {
+            return {
+              x:Math.round(Math.max(a.x,Math.min(x,a.x+Math.max(0,a.width-w)))),
+              y:Math.round(Math.max(a.y,Math.min(y,a.y+Math.max(0,a.height-h))))
+            };
+          }
+          function walk(x,d,distance,w,a) {
+            const min=a.x, max=a.x+Math.max(0,a.width-w);
+            const next=x+d*distance;
+            return {
+              x:Math.max(min,Math.min(next,max)),
+              direction:next<=min?1:next>=max?-1:d
+            };
+          }
+          module.exports={normalize,clamp,walk};
+          `);
+
+          write('src/main.cjs', `
+          const {app,BrowserWindow,Menu,Tray,ipcMain,screen,dialog}
+            = require('electron');
+          const fs=require('node:fs');
+          const path=require('node:path');
+          const assert=require('node:assert/strict');
+          const {normalize,clamp,walk}=require('./model.cjs');
+
+          let pet,tray,timer,drag=null,position=null;
+          let config=normalize(), state='idle', direction=-1;
+          let next=Date.now()+18000, until=0, last=Date.now();
+          const smoke=app.commandLine.hasSwitch('smoke');
+          const configPath=()=>path.join(app.getPath('userData'),'settings.json');
+          const snapshot=()=>({state,direction,config});
+
+          function notify() {
+            if(pet&&!pet.isDestroyed())
+              pet.webContents.send('pet:state',snapshot());
+          }
+          function change(value) {
+            if(!['idle','walk','sleep','happy'].includes(value)) return;
+            state=value;
+            position=null;
+            until=Date.now()+(value==='happy'?3000:10000);
+            next=Date.now()+18000+Math.random()*12000;
+            notify();
+          }
+          function home() {
+            const a=screen.getPrimaryDisplay().workArea;
+            const [w,h]=pet.getSize();
+            const p=clamp(a.x+a.width-w-30,a.y+a.height-h,w,h,a);
+            pet.setPosition(p.x,p.y);
+            position=null;
+            pet.show();
+          }
+          function save(patch) {
+            const updated=normalize({...config,...patch});
+            try {
+              fs.mkdirSync(app.getPath('userData'),{recursive:true});
+              fs.writeFileSync(configPath()+'.tmp',JSON.stringify(updated));
+              fs.renameSync(configPath()+'.tmp',configPath());
+            } catch(error) {
+              dialog.showErrorBox('设置保存失败',error.message);
+              return;
+            }
+            config=updated;
+            const old=pet.getBounds();
+            const w=Math.round(260*config.scale/100);
+            const h=Math.round(280*config.scale/100);
+            pet.setAlwaysOnTop(config.top);
+            pet.setSize(w,h);
+            const a=screen.getDisplayMatching(old).workArea;
+            const p=clamp(old.x,old.y+old.height-h,w,h,a);
+            pet.setPosition(p.x,p.y);
+            position=null;
+            if(!config.auto&&state==='walk') change('idle');
+            notify();
+          }
+          function menu() {
+            return Menu.buildFromTemplate([
+              {label:'帕恰狗的小窝',enabled:false},
+              {type:'separator'},
+              {label:'摸摸头',click:()=>change('happy')},
+              {label:'散步一会儿',click:()=>change('walk')},
+              {label:state==='sleep'?'叫醒它':'睡一觉',
+                click:()=>change(state==='sleep'?'idle':'sleep')},
+              {label:'停下来陪我',click:()=>change('idle')},
+              {type:'separator'},
+              {label:'设置',submenu:[
+                {label:'一直置顶',type:'checkbox',checked:config.top,
+                  click:()=>save({top:!config.top})},
+                {label:'自动散步',type:'checkbox',checked:config.auto,
+                  click:()=>save({auto:!config.auto})},
+                {label:'宠物大小',submenu:[75,100,125,150].map(scale=>({
+                  label:scale+'%',type:'radio',checked:config.scale===scale,
+                  click:()=>save({scale})
+                }))},
+                {label:'散步速度',submenu:[
+                  {label:'慢悠悠',speed:15},
+                  {label:'刚刚好',speed:35},
+                  {label:'轻快一点',speed:65}
+                ].map(item=>({
+                  label:item.label,type:'radio',
+                  checked:config.speed===item.speed,
+                  click:()=>save({speed:item.speed})
+                }))}
+              ]},
+              {label:'回到屏幕右下角',click:home},
+              {type:'separator'},
+              {label:'退出桌面宠物',click:()=>app.quit()}
+            ]);
+          }
+
+          if(!app.requestSingleInstanceLock()) app.quit();
+          else app.whenReady().then(()=>{
+            try {
+              config=normalize(JSON.parse(fs.readFileSync(configPath(),'utf8')));
+            } catch {}
+            pet=new BrowserWindow({
+              width:Math.round(260*config.scale/100),
+              height:Math.round(280*config.scale/100),
+              frame:false,transparent:true,backgroundColor:'#00000000',
+              hasShadow:false,resizable:false,skipTaskbar:true,
+              alwaysOnTop:config.top,show:false,
+              webPreferences:{
+                preload:path.join(__dirname,'preload.cjs'),
+                contextIsolation:true,nodeIntegration:false,sandbox:true
+              }
+            });
+
+            pet.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+            pet.webContents.on('will-navigate',event=>event.preventDefault());
+            pet.once('ready-to-show',()=>{
+              pet.setIgnoreMouseEvents(true,{forward:true});
+              if(!smoke) home();
+              notify();
+            });
+            pet.on('closed',()=>{pet=null;app.quit()});
+
+            tray=new Tray(path.join(__dirname,'../assets/icon.png'));
+            tray.setToolTip('帕恰狗 · 点击打开小窝');
+            tray.on('click',()=>tray.popUpContextMenu(menu()));
+            tray.on('right-click',()=>tray.popUpContextMenu(menu()));
+
+            ipcMain.handle('pet:get',()=>snapshot());
+            ipcMain.on('pet:action',(event,value)=>{
+              if(event.sender!==pet?.webContents) return;
+              if(value==='menu') menu().popup({window:pet});
+              else change(value);
+            });
+            ipcMain.on('pet:pass',(event,value)=>{
+              if(event.sender===pet?.webContents&&typeof value==='boolean')
+                pet.setIgnoreMouseEvents(value,{forward:true});
+            });
+            ipcMain.on('pet:drag',(event,value)=>{
+              if(event.sender!==pet?.webContents||!value) return;
+              if(value.phase==='end') {drag=null;position=null;return;}
+              if(!Number.isFinite(value.x)||!Number.isFinite(value.y)) return;
+              if(value.phase==='start') {
+                const bounds=pet.getBounds();
+                drag={mx:value.x,my:value.y,x:bounds.x,y:bounds.y};
+                if(state==='walk') change('idle');
+              } else if(value.phase==='move'&&drag) {
+                const a=screen.getDisplayNearestPoint({
+                  x:Math.round(value.x),y:Math.round(value.y)
+                }).workArea;
+                const [w,h]=pet.getSize();
+                const p=clamp(
+                  drag.x+value.x-drag.mx,drag.y+value.y-drag.my,w,h,a
+                );
+                pet.setPosition(p.x,p.y);
+              }
+            });
+
+            timer=setInterval(()=>{
+              if(!pet||pet.isDestroyed()) return;
+              const now=Date.now();
+              const dt=Math.min((now-last)/1000,.1);last=now;
+              if(drag||state==='sleep') return;
+              if(state==='happy'&&now>until) change('idle');
+              if(state==='idle'&&config.auto&&now>next) change('walk');
+              if(state==='walk') {
+                if(now>until) {change('idle');return;}
+                const b=pet.getBounds();
+                const a=screen.getDisplayMatching(b).workArea;
+                if(position===null) position=b.x;
+                const p=walk(position,direction,config.speed*dt,b.width,a);
+                position=p.x;
+                if(p.direction!==direction) {
+                  direction=p.direction;notify();
+                }
+                pet.setPosition(Math.round(position),b.y);
+              }
+            },40);
+
+            screen.on('display-removed',()=>{if(pet&&!smoke)home()});
+            screen.on('display-metrics-changed',()=>{if(pet&&!smoke)home()});
+
+            if(smoke) {
+              const watchdog=setTimeout(()=>{
+                fs.writeFileSync('smoke-result.json',
+                  JSON.stringify({passed:false,error:'timeout'}));
+                app.exit(1);
+              },15000);
+              pet.webContents.once('did-finish-load',async()=>{
+                try {
+                  assert.equal(pet.isAlwaysOnTop(),config.top);
+                  assert.equal(await pet.webContents.executeJavaScript(
+                    "document.querySelectorAll('svg').length"
+                  ),1);
+                  await pet.webContents.executeJavaScript(
+                    "window.pet.action('sleep'); true"
+                  );
+                  await new Promise(resolve=>setTimeout(resolve,200));
+                  assert.equal(state,'sleep');
+                  assert.equal(await pet.webContents.executeJavaScript(
+                    "document.getElementById('pet').classList.contains('sleep')"
+                  ),true);
+                  await pet.webContents.executeJavaScript(
+                    "window.pet.action('happy'); true"
+                  );
+                  await new Promise(resolve=>setTimeout(resolve,200));
+                  assert.equal(state,'happy');
+                  fs.writeFileSync('smoke-result.json',
+                    JSON.stringify({passed:true,
+                      checks:['window','SVG','IPC sleep','renderer state','IPC happy']}));
+                  clearTimeout(watchdog);
+                  app.exit(0);
+                } catch(error) {
+                  fs.writeFileSync('smoke-result.json',
+                    JSON.stringify({passed:false,error:error.message}));
+                  clearTimeout(watchdog);
+                  app.exit(1);
+                }
+              });
+            }
+            pet.loadFile(path.join(__dirname,'pet.html'));
+          });
+
+          app.on('second-instance',()=>{if(pet)home()});
+          app.on('before-quit',()=>{clearInterval(timer);tray?.destroy()});
+          app.on('window-all-closed',()=>app.quit());
+          `);
+
+          write('src/preload.cjs', `
+          const {contextBridge,ipcRenderer}=require('electron');
+          contextBridge.exposeInMainWorld('pet',{
+            get:()=>ipcRenderer.invoke('pet:get'),
+            action:value=>ipcRenderer.send('pet:action',value),
+            drag:value=>ipcRenderer.send('pet:drag',value),
+            pass:value=>ipcRenderer.send('pet:pass',value),
+            onState:callback=>ipcRenderer.on('pet:state',(_,value)=>callback(value))
+          });
+          `);
+
+          write('src/pet.html', `<!doctype html>
+          <html lang="zh-CN"><head>
+          <meta charset="utf-8">
+          <meta http-equiv="Content-Security-Policy"
+            content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+          <title>帕恰狗</title>
+          <link rel="stylesheet" href="pet.css">
+          </head><body>
+          <main id="pet" class="idle" tabindex="0" aria-label="帕恰狗，拖动移动，右键打开菜单">
+            <div id="bubble">你好，我来陪你啦！</div>
+            <span class="zzz">z z Z</span>
+            <span class="heart">♡</span>
+            <svg viewBox="0 0 260 280" aria-label="白色小狗、黑色垂耳、绿色上衣" role="img">
+              <ellipse cx="130" cy="259" rx="54" ry="7" fill="#344133" opacity=".12"/>
+              <g class="character">
+                <path class="tail" d="M169 223 Q195 208 188 195 Q180 188 177 200"
+                  fill="#fffef8" stroke="#292f32" stroke-width="4.5"/>
+                <g class="left leg"><path d="M109 225 L104 250 Q115 259 128 251 L129 226"
+                  fill="#fffef8" stroke="#292f32" stroke-width="4.5"/></g>
+                <g class="right leg"><path d="M139 226 L140 251 Q151 258 161 251 L156 225"
+                  fill="#fffef8" stroke="#292f32" stroke-width="4.5"/></g>
+                <path d="M105 180 Q95 196 96 218 Q129 238 165 218 Q166 196 154 180Z"
+                  fill="#a8cf8e" stroke="#292f32" stroke-width="4.5"/>
+                <path d="M118 185 Q129 197 144 185"
+                  fill="none" stroke="#6f925a" stroke-width="4"/>
+                <g class="left arm"><path d="M102 190 Q86 194 82 210 Q84 223 94 218 L110 199"
+                  fill="#fffef8" stroke="#292f32" stroke-width="4.5"/></g>
+                <g class="right arm"><path d="M156 190 Q176 197 179 212 Q177 224 167 218 L151 200"
+                  fill="#fffef8" stroke="#292f32" stroke-width="4.5"/></g>
+                <g class="head">
+                  <path class="ear" d="M86 109 Q63 98 57 124 Q49 147 57 169 Q68 180 80 164 L92 134Z"
+                    fill="#292f32"/>
+                  <path class="ear" d="M171 109 Q192 100 201 128 Q210 155 200 171 Q188 181 177 160 L166 132Z"
+                    fill="#292f32"/>
+                  <path d="M80 135 Q78 110 96 102 Q92 90 100 88 L110 94 Q111 81 120 83 L130 94 Q138 85 146 90 L147 100 Q174 104 180 133 Q187 159 171 175 Q153 191 128 190 Q99 190 84 172 Q75 157 80 135Z"
+                    fill="#fffef8" stroke="#292f32" stroke-width="4.5" stroke-linejoin="round"/>
+                  <g class="eyes" fill="#292f32">
+                    <ellipse cx="105" cy="145" rx="4.8" ry="6.6"/>
+                    <ellipse cx="151" cy="145" rx="4.8" ry="6.6"/>
+                  </g>
+                  <g class="closed" fill="none" stroke="#292f32" stroke-width="3.5" stroke-linecap="round">
+                    <path d="M99 147 Q105 151 111 147"/>
+                    <path d="M145 147 Q151 151 157 147"/>
+                  </g>
+                  <ellipse cx="128" cy="161" rx="5.5" ry="4" fill="#292f32"/>
+                  <path d="M122 170 Q128 176 135 170"
+                    fill="none" stroke="#292f32" stroke-width="2.8" stroke-linecap="round"/>
+                  <g fill="#f2b9b1" opacity=".6">
+                    <ellipse cx="92" cy="160" rx="9" ry="5"/>
+                    <ellipse cx="164" cy="160" rx="9" ry="5"/>
+                  </g>
+                </g>
+              </g>
+            </svg>
+            <button id="menu" aria-label="打开小窝设置" title="小窝设置">✿</button>
+          </main>
+          <script src="pet.js"></script>
+          </body></html>`);
+
+          write('src/pet.css', `
+          *{box-sizing:border-box}
+          html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;user-select:none}
+          body{font-family:"Microsoft YaHei","Segoe UI",sans-serif}
+          #pet{position:relative;width:100%;height:100%;cursor:grab;outline:none}
+          #pet.dragging{cursor:grabbing}
+          svg{width:100%;height:100%;pointer-events:none}
+          .character{pointer-events:visiblePainted;transform-origin:130px 254px;animation:breathe 3s ease-in-out infinite}
+          .head{transform-origin:129px 178px}
+          .eyes{transform-origin:128px 145px;animation:blink 5s infinite}
+          .closed{display:none}
+          .tail{transform-origin:170px 220px;animation:wag 1.5s ease-in-out infinite}
+          .arm,.leg,.ear{transform-box:fill-box;transform-origin:50% 10%}
+          .walk .character{animation:bounce .45s infinite}
+          .walk .left{animation:stride .45s infinite alternate}
+          .walk .right{animation:stride .45s infinite alternate-reverse}
+          .walk .ear{animation:stride .45s infinite alternate}
+          .sleep .character{animation:nap 4s ease-in-out infinite}
+          .sleep .head{transform:rotate(-8deg)}
+          .sleep .tail{animation:none}
+          .sleep .eyes,.happy .eyes{display:none}
+          .sleep .closed,.happy .closed{display:block}
+          .happy .character{animation:bounce .6s infinite}
+          .happy .arm.right{animation:wave .3s infinite alternate}
+          .happy .tail{animation:wag .25s infinite}
+          .face-right svg{transform:scaleX(-1)}
+          #bubble{position:absolute;left:50%;top:12%;transform:translateX(-50%);white-space:nowrap;
+            padding:8px 12px;border:1px solid #dee4d5;border-radius:15px;background:#fffdf5;
+            color:#657950;font-size:12px;pointer-events:none;opacity:0;transition:opacity .2s}
+          #bubble.visible{opacity:1}
+          .zzz,.heart{position:absolute;display:none;pointer-events:none;top:25%;right:23%;color:#8c9fb7}
+          .sleep .zzz{display:block;animation:drift 3s infinite}
+          .heart{color:#dd9eac;font-size:27px;left:24%;right:auto}
+          .happy .heart{display:block;animation:drift 1.4s infinite}
+          #menu{position:absolute;right:16%;bottom:10%;border:1px solid #d7dfcb;
+            background:#fffdf5;color:#78945e;border-radius:50%;width:27px;height:27px;
+            font-size:17px;cursor:pointer;opacity:0}
+          #pet:hover #menu,#menu:focus-visible{opacity:1}
+          @keyframes breathe{50%{transform:translateY(-2px) scaleY(1.01)}}
+          @keyframes blink{0%,42%,46%,100%{transform:scaleY(1)}44%{transform:scaleY(.08)}}
+          @keyframes wag{50%{transform:rotate(12deg)}}
+          @keyframes bounce{50%{transform:translateY(-4px)}}
+          @keyframes stride{from{transform:rotate(-12deg)}to{transform:rotate(12deg)}}
+          @keyframes wave{from{transform:rotate(-10deg)}to{transform:rotate(-65deg)}}
+          @keyframes nap{0%,100%{transform:translateY(15px) scaleY(.91)}50%{transform:translateY(13px) scaleY(.93)}}
+          @keyframes drift{0%,100%{opacity:.4;transform:translateY(0)}50%{opacity:1;transform:translateY(-10px)}}
+          @media(prefers-reduced-motion:reduce){.character,.eyes,.tail,.arm,.leg,.ear,.heart,.zzz{animation:none!important}}
+          `);
+
+          write('src/pet.js', `
+          const element=document.getElementById('pet');
+          const bubble=document.getElementById('bubble');
+          let state='idle',gesture=null,pass=true,bubbleTimer;
+          function say(text) {
+            clearTimeout(bubbleTimer);
+            bubble.textContent=text;
+            bubble.classList.add('visible');
+            bubbleTimer=setTimeout(()=>bubble.classList.remove('visible'),2800);
+          }
+          function update(value) {
+            state=value.state;
+            element.classList.remove('idle','walk','sleep','happy');
+            element.classList.add(state);
+            element.classList.toggle('face-right',value.direction>0);
+          }
+          window.pet.onState(update);
+          window.pet.get().then(update);
+          document.addEventListener('mousemove',event=>{
+            const next=!gesture&&!event.target.closest('.character,#menu');
+            if(next!==pass){pass=next;window.pet.pass(next)}
+          });
+          element.addEventListener('pointerdown',event=>{
+            if(event.button!==0||event.target.closest('button'))return;
+            gesture={x:event.screenX,y:event.screenY,moved:false};
+            element.setPointerCapture(event.pointerId);
+            window.pet.drag({phase:'start',x:event.screenX,y:event.screenY});
+          });
+          element.addEventListener('pointermove',event=>{
+            if(!gesture)return;
+            if(Math.hypot(event.screenX-gesture.x,event.screenY-gesture.y)>4)
+              gesture.moved=true;
+            if(gesture.moved){
+              element.classList.add('dragging');
+              window.pet.drag({phase:'move',x:event.screenX,y:event.screenY});
+            }
+          });
+          function end(event,cancelled=false){
+            if(!gesture)return;
+            const click=!gesture.moved&&!cancelled;
+            gesture=null;
+            element.classList.remove('dragging');
+            window.pet.drag({phase:'end'});
+            if(element.hasPointerCapture(event.pointerId))
+              element.releasePointerCapture(event.pointerId);
+            if(click){
+              window.pet.action(state==='sleep'?'idle':'happy');
+              say(state==='sleep'?'睡醒啦，继续陪你！':'摸摸头，充电成功！');
+            }
+          }
+          element.addEventListener('pointerup',event=>end(event));
+          element.addEventListener('pointercancel',event=>end(event,true));
+          element.addEventListener('lostpointercapture',event=>end(event,true));
+          element.addEventListener('contextmenu',event=>{
+            event.preventDefault();window.pet.action('menu');
+          });
+          element.addEventListener('keydown',event=>{
+            if(event.key==='Enter'||event.key===' '){
+              event.preventDefault();window.pet.action('happy');say('你好呀！');
+            }
+            if(event.key==='Escape')window.pet.action('menu');
+          });
+          document.getElementById('menu').addEventListener('click',
+            ()=>window.pet.action('menu'));
+          setTimeout(()=>say('你好，我来陪你啦！'),700);
+          `);
+
+          write('test/model.test.cjs', `
+          const test=require('node:test');
+          const assert=require('node:assert/strict');
+          const {normalize,clamp,walk}=require('../src/model.cjs');
+
+          test('invalid settings are bounded',()=>{
+            assert.deepEqual(
+              normalize({top:'yes',auto:false,scale:Infinity,speed:-1}),
+              {top:true,auto:false,scale:100,speed:15}
+            );
+            assert.equal(normalize({scale:900}).scale,150);
+            assert.equal(normalize(null).scale,100);
+          });
+          test('drag respects negative-coordinate monitors and small displays',()=>{
+            const a={x:-1920,y:-50,width:1920,height:1040};
+            assert.deepEqual(clamp(-3000,1200,260,280,a),{x:-1920,y:710});
+            assert.deepEqual(clamp(40,-80,260,280,a),{x:-260,y:-50});
+            assert.deepEqual(clamp(500,500,260,280,
+              {x:0,y:0,width:100,height:100}),{x:0,y:0});
+          });
+          test('walking reverses at both edges and retains fractional movement',()=>{
+            const a={x:-100,width:1000};
+            assert.deepEqual(walk(-99,-1,5,260,a),{x:-100,direction:1});
+            assert.deepEqual(walk(638,1,5,260,a),{x:640,direction:-1});
+            assert.deepEqual(walk(0,1,1.4,260,a),{x:1.4,direction:1});
+          });
+          `);
+
+          // Generate a local PNG tray icon without downloading artwork.
+          function crc32(buffer) {
+            let c=0xffffffff;
+            for(const byte of buffer) {
+              c^=byte;
+              for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0);
+            }
+            return (c^0xffffffff)>>>0;
+          }
+          function chunk(type,data) {
+            const name=Buffer.from(type);
+            const size=Buffer.alloc(4);size.writeUInt32BE(data.length);
+            const crc=Buffer.alloc(4);
+            crc.writeUInt32BE(crc32(Buffer.concat([name,data])));
+            return Buffer.concat([size,name,data,crc]);
+          }
+          const raw=Buffer.alloc(64*(64*4+1));
+          function oval(x,y,cx,cy,rx,ry) {
+            return ((x-cx)/rx)**2+((y-cy)/ry)**2<=1;
+          }
+          for(let y=0;y<64;y++)for(let x=0;x<64;x++) {
+            let color=[0,0,0,0];
+            if(oval(x,y,32,50,15,10))color=[168,207,142,255];
+            if(oval(x,y,12,29,8,18)||oval(x,y,52,29,8,18))
+              color=[41,47,50,255];
+            if(oval(x,y,32,27,20,20))color=[41,47,50,255];
+            if(oval(x,y,32,27,18,18))color=[255,254,248,255];
+            if(oval(x,y,25,28,2,3)||oval(x,y,39,28,2,3)||
+               oval(x,y,32,35,2,1.5))color=[41,47,50,255];
+            if(oval(x,y,20,35,3,1.5)||oval(x,y,44,35,3,1.5))
+              color=[242,185,177,255];
+            const offset=y*257+1+x*4;
+            color.forEach((value,i)=>raw[offset+i]=value);
+          }
+          const header=Buffer.alloc(13);
+          header.writeUInt32BE(64,0);header.writeUInt32BE(64,4);
+          header[8]=8;header[9]=6;
+          write('assets/icon.png',Buffer.concat([
+            Buffer.from([137,80,78,71,13,10,26,10]),
+            chunk('IHDR',header),
+            chunk('IDAT',zlib.deflateSync(raw)),
+            chunk('IEND',Buffer.alloc(0))
+          ]));
+
+          write('README.md', `# 帕恰狗桌面宠物
+
+          适用于 Windows 10/11 x64。
+
+          ## 使用
+          - 安装版：运行 PochaccoPet-1.0.0-x64.exe。
+          - 便携版：完整解压 PochaccoPet-1.0.0-x64.zip，运行 PochaccoPet.exe。
+          - 拖动宠物移动；点击摸摸头；睡觉时点击叫醒。
+          - 右键宠物，或点击系统托盘图标，打开互动与设置菜单。
+          - 设置支持置顶、自动散步、大小与速度，自动保存在用户应用数据目录。
+          - 找不到宠物时，从托盘菜单选择“回到屏幕右下角”。
+          - 从菜单选择“退出桌面宠物”结束运行。
+          - 没有运行时网络请求，不自动设置开机启动。
+
+          ## 开发
+          安装 Node.js 22，在源码目录运行：
+          npm ci
+          npm test
+          npm start
+
+          Windows 打包：
+          npm run build:win
+
+          ## 验证范围
+          npm test 检查设置校验、拖动边界与散步转向。
+          npm run test:app 检查 Windows Electron 启动、SVG 和睡觉/开心状态 IPC。
+          人工拖动、透明区域穿透、托盘显示、多显示器与不同缩放比例仍需实机验收。
+          安装包未代码签名。
+
+          个人学习用同人作品。帕恰狗/Pochacco 属于 Sanrio，本项目与 Sanrio 无关联。
+          `);
+          '@
+          $generatorPath = Join-Path $env:PET_ROOT "generate.cjs"
+          Set-Content -Path $generatorPath -Value $generator -Encoding utf8
+          node $generatorPath
+          if ($LASTEXITCODE -ne 0) { throw "源码生成失败" }
+          Remove-Item $generatorPath
+
+      - name: 安装依赖
+        shell: pwsh
+        run: |
+          Set-Location $env:PET_ROOT
+          npm install --package-lock-only
+          if ($LASTEXITCODE -ne 0) { throw "依赖解析失败" }
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw "依赖安装失败" }
+
+      - name: 模型测试
+        shell: pwsh
+        run: |
+          Set-Location $env:PET_ROOT
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw "模型测试失败" }
+
+      - name: Windows Electron 启动与状态测试
+        shell: pwsh
+        run: |
+          Set-Location $env:PET_ROOT
+          npm run test:app
+          if ($LASTEXITCODE -ne 0) { throw "Electron 测试失败" }
+          if (-not (Test-Path "smoke-result.json")) {
+            throw "没有生成测试结果"
+          }
+          $result = Get-Content "smoke-result.json" -Raw | ConvertFrom-Json
+          if ($result.passed -ne $true) { throw "Electron 测试未通过" }
+          Get-Content "smoke-result.json"
+
+      - name: 构建安装版与便携版
+        shell: pwsh
+        run: |
+          Set-Location $env:PET_ROOT
+          npm run build:win
+          if ($LASTEXITCODE -ne 0) { throw "Windows 打包失败" }
+          if (-not (Test-Path "dist/PochaccoPet-1.0.0-x64.exe")) {
+            throw "缺少安装程序"
+          }
+          if (-not (Test-Path "dist/PochaccoPet-1.0.0-x64.zip")) {
+            throw "缺少便携压缩包"
+          }
+
+      - name: 源码包与中文说明
+        shell: pwsh
+        run: |
+          Set-Location $env:PET_ROOT
+          $sources = @(
+            "src", "assets", "test",
+            "package.json", "package-lock.json", "README.md"
+          )
+          Compress-Archive -Path $sources -DestinationPath "dist/PochaccoPet-source.zip"
+          Copy-Item "README.md" "dist/使用说明.md"
+          Copy-Item "smoke-result.json" "dist/自动化测试结果.json"
+
+      - name: 上传可下载产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: PochaccoPet-Windows
+          path: |
+            ${{ env.PET_ROOT }}/dist/*.exe
+            ${{ env.PET_ROOT }}/dist/*.zip
+            ${{ env.PET_ROOT }}/dist/*.md
+            ${{ env.PET_ROOT }}/dist/*.json
+          if-no-files-found: error
+          retention-days: 30

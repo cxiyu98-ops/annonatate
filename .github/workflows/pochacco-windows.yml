@@ -11,11 +11,16 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     env:
-      PET_ROOT: ${{ github.workspace }}/.pochacco-build
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-    steps:
+       steps:
       - uses: actions/checkout@v4
+
+      - name: 设置项目目录
+        shell: pwsh
+        run: |
+          $petRoot = Join-Path $env:RUNNER_TEMP "pochacco-pet"
+          "PET_ROOT=$petRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - uses: actions/setup-node@v4
         with:

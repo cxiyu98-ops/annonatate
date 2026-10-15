@@ -5,6 +5,7 @@
   const dashboard = document.getElementById('dashboard-layer');
   const entries = [...document.querySelectorAll('[data-enter-console]')];
   let selectedConsole = 'execution';
+  let previewMinute = '';
   const back = document.getElementById('return-room-home');
   const popover = document.getElementById('room-popover');
   const clock = document.getElementById('room-clock');
@@ -103,11 +104,11 @@
       `<span class="mini-caption">当前任务</span><span class="mini-current">${e(task?.title || '暂无当前任务')}</span><strong id="room-preview-timer" class="mini-timer">25:00</strong><span class="mini-quest"><span>${e(quest?.title || '尚未设置主线')}</span><b>${quest?.progress || 0}%</b></span><span class="mini-progress"><i style="width:${quest?.progress || 0}%"></i></span>`;
     document.getElementById('preview-status').innerHTML = heading('status') +
       `<span class="mini-mood">${LCR.icon('mood')}<strong>${e(s.status.moodWeather)}</strong></span><span class="mini-energy">精力 <b>${s.status.stats.energy}%</b></span><span class="mini-progress"><i style="width:${s.status.stats.energy}%"></i></span><span class="mini-side">支线任务 <b>${s.status.sideQuests.filter(item=>item.completed).length} / ${s.status.sideQuests.length}</b></span>`;
-    updatePreviewTimer();
+    updatePreviewTimer(); previewMinute = timeText();
   };
   // Reuse the existing mutation and timer hooks; previews never keep a copy of task data.
   const render = LCR.render, drawTimer = LCR.drawTimer;
   LCR.render = () => { render(); renderMonitorPreviews(); };
   LCR.drawTimer = () => { drawTimer(); updatePreviewTimer(); };
-  renderMonitorPreviews(); updateTime(); setInterval(() => { updateTime(); }, 1000);
+  renderMonitorPreviews(); updateTime(); setInterval(() => { updateTime(); if (previewMinute !== timeText()) renderMonitorPreviews(); }, 1000);
 })();

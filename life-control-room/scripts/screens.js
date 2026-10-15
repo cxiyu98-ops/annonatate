@@ -22,7 +22,7 @@ for(const panel of Object.keys(LCR.views)){
  screen.append(store);
  const overview=document.createElement('div');overview.className='screen-overview';screen.append(overview);
  const detail=document.createElement('div');detail.className='screen-detail';detail.hidden=true;
- detail.innerHTML=`<div class="screen-breadcrumb"><button data-screen-back="${panel}">← 返回总览</button><span></span></div><div class="module-content"></div><div class="detail-hint">点击条目查看与编辑</div>`;screen.append(detail);
+ detail.innerHTML=`<div class="screen-breadcrumb"><button data-screen-back="${panel}">← 返回控制台</button><span></span></div><div class="module-content"></div><div class="detail-hint">点击条目查看与编辑</div>`;screen.append(detail);
  const editorHost=document.createElement('div');editorHost.className='screen-editor';editorHost.hidden=true;screen.append(editorHost);
  LCR.screenDOM[panel]={screen,store,overview,detail,editorHost};
 }
@@ -86,29 +86,37 @@ LCR.closeInline=(focus=true)=>{
  editor.hidden=true;dom.editorHost.hidden=true;dom.detail.hidden=false;LCR.editorPanel=null;
  if(focus){LCR.animateView(dom.detail);dom.detail.querySelector('button')?.focus({preventScroll:true});}
 };
+LCR.consoleMeta={planning:{title:'计划台',icon:'planning'},execution:{title:'执行台',icon:'execution'},status:{title:'状态台',icon:'status'}};
+LCR.icon=(name,cls='')=>`<svg class="pixel-icon ${cls}" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons/console-icons.svg#${name}"></use></svg>`;
+LCR.moduleIcon={task:'planning',inbox:'inbox',schedule:'schedule',quest:'quest',current:'current',timer:'timer',next:'next',mood:'mood',stats:'stats',side:'side',rest:'rest'};
+for(const [key,module] of Object.entries(LCR.modules)){const heading=module.node.querySelector('h3');if(heading)heading.innerHTML=LCR.icon(LCR.moduleIcon[key])+' '+LCR.escape(module.title);}
 LCR.focusScreen=(name)=>{
- document.body.classList.toggle('focus-view',name!=='home');
- document.querySelectorAll('.monitor').forEach(p=>p.classList.toggle('focused',p.id===name));
- document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('selected',b.dataset.nav===name));
- if(name==='home'){for(const p of Object.keys(LCR.views)){if(!LCR.screenDOM[p].editorHost.hidden){LCR.selectEditor(p);LCR.closeInline(false);}LCR.overview(p,false);}}
- else if(innerWidth<981)document.getElementById(name).scrollIntoView({behavior:'smooth',block:'start'});
+ if(name==='home'){LCR.returnRoom?.();return;}
+ if(!LCR.consoleMeta[name])return;
+ LCR.activeConsole=name;document.body.dataset.console=name;
+ document.querySelectorAll('.monitor').forEach(panel=>{panel.hidden=panel.id!==name;panel.inert=panel.id!==name;});
+ document.querySelectorAll('[data-nav]').forEach(button=>{button.classList.toggle('selected',button.dataset.nav===name);if(button.dataset.nav===name)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});
+ document.getElementById('active-console-label').textContent=LCR.consoleMeta[name].title;
+ document.getElementById(name).querySelector('.panel-icon').innerHTML=LCR.icon(LCR.consoleMeta[name].icon);
+ // A parked form keeps its draft but receives shared editor IDs when its console is restored.
+ if(!LCR.screenDOM[name].editorHost.hidden)LCR.selectEditor(name);
 };
 LCR.renderOverviews=()=>{
  const s=LCR.state,e=LCR.escape;
  const row=(x,extra='')=>`<div class="preview-row ${x.completed?'preview-done':''}"><span class="preview-box">${x.completed?'✓':''}</span><span>${e(x.title)}</span>${extra}</div>`;
- const card=(key,meta,body,cls='')=>`<button class="overview-module ${cls}" data-module="${key}" aria-label="打开${LCR.modules[key].title}"><span class="module-heading"><span><i>${LCR.modules[key].icon}</i>${LCR.modules[key].title}</span><span class="module-meta">${meta} <b>↗</b></span></span>${body}</button>`;
+ const card=(key,meta,body,cls='')=>`<button class="overview-module ${cls}" data-module="${key}" aria-label="打开${LCR.modules[key].title}"><span class="module-heading"><span><i>${LCR.icon(LCR.moduleIcon[key])}</i>${LCR.modules[key].title}</span><span class="module-meta">${meta} <b>↗</b></span></span>${body}</button>`;
  const tasks=s.planning.keyTasks,inbox=s.planning.inbox,schedule=[...s.planning.schedule].sort((a,b)=>a.start.localeCompare(b.start));
- LCR.screenDOM.planning.overview.innerHTML=card('task',`${tasks.filter(x=>x.completed).length} / ${tasks.length}`,`<div class="preview-list">${tasks.slice(0,3).map(x=>row(x)).join('')||'<p class="empty">暂无任务</p>'}</div><span class="module-foot">${tasks.length>3?`查看全部 ${tasks.length} 项`:'管理今日要事'} →</span>`,'summary-tasks')+
- card('inbox',`${inbox.length} 项`,`<div class="preview-list">${inbox.slice(0,2).map(x=>`<div class="inbox-preview">· <span>${e(x.title)}</span></div>`).join('')||'<p class="empty">收集箱是空的</p>'}</div><span class="module-foot">打开收集箱 →</span>`,'summary-inbox')+
+ LCR.screenDOM.planning.overview.innerHTML=card('task',`${tasks.filter(x=>x.completed).length} / ${tasks.length}`,`<div class="preview-list">${tasks.slice(0,4).map(x=>row(x)).join('')||'<p class="empty">暂无任务</p>'}</div><span class="module-foot">${tasks.length>3?`查看全部 ${tasks.length} 项`:'管理今日要事'} →</span>`,'summary-tasks')+
+ card('inbox',`${inbox.length} 项`,`<div class="preview-list">${inbox.slice(0,4).map(x=>`<div class="inbox-preview">· <span>${e(x.title)}</span></div>`).join('')||'<p class="empty">收集箱是空的</p>'}</div><span class="module-foot">打开收集箱 →</span>`,'summary-inbox')+
  card('schedule',`${schedule.length} 个日程`,`<div class="schedule-preview">${schedule.slice(0,5).map(x=>`<div><time>${e(x.start)}</time><span>${e(x.title)}</span></div>`).join('')||'<p class="empty">今日暂无日程</p>'}</div><span class="module-foot">查看完整日程 →</span>`,'summary-schedule');
  const q=LCR.find('quest',s.execution.activeMainQuestId),t=LCR.current(),paused=s.status.restMode||s.execution.currentTask?.paused;
  LCR.screenDOM.execution.overview.innerHTML=card('quest',q?`${q.progress}%`:'',`<div class="quest-preview"><strong>${e(q?.title||'添加你的主线')}</strong><span>${e(q?.stage||'')}<span class="quest-stage-dot">·</span>当前阶段</span></div><div class="pixel-mountains" aria-hidden="true"><i></i><i></i><i></i><span>⚑</span></div><div class="progress"><i style="width:${q?.progress||0}%"></i></div><span class="quest-milestone">下一里程碑 → ${e(q?.milestone||'待设置')}</span>`,'summary-quest')+
  card('current',t?(paused?'已暂停':'进行中'):'待选择',`<strong class="summary-task-title">${e(t?.title||'选择一件当前任务')}</strong><div class="current-meta"><span class="tag">${e(t?.category||'计划台')}</span><span>◷ ${t?.duration||25} 分钟</span><span class="module-open">查看任务 →</span></div>`,'summary-current')+
  card('timer','番茄钟',`<div class="summary-timer"><span class="timer-mark">◷</span><strong id="overview-timer">25:00</strong><span id="overview-timer-state">准备专注</span><span class="timer-open">▶</span></div>`,'summary-timer-card')+
- card('next',`${s.execution.nextSteps.filter(x=>!x.completed).length} 项待推进`,`<div class="preview-list">${s.execution.nextSteps.slice(0,2).map((x,i)=>`<div class="preview-row"><span class="step-index">0${i+1}</span><span>${e(x.title)}</span><small>${x.duration}m</small></div>`).join('')||'<p class="empty">暂无下一步</p>'}</div><span class="module-foot">展开下一步 →</span>`,'summary-next');
+ card('next',`${s.execution.nextSteps.filter(x=>!x.completed).length} 项待推进`,`<div class="preview-list">${s.execution.nextSteps.slice(0,3).map((x,i)=>`<div class="preview-row"><span class="step-index">0${i+1}</span><span>${e(x.title)}</span><small>${x.duration}m</small></div>`).join('')||'<p class="empty">暂无下一步</p>'}</div><span class="module-foot">展开下一步 →</span>`,'summary-next');
  LCR.screenDOM.status.overview.innerHTML=card('mood','此刻',`<div class="weather-summary"><span class="pixel-weather ${['焦虑','疲惫'].includes(s.status.moodWeather)?'muted-weather':''}">${LCR.moods[s.status.moodWeather]}</span><div><strong>${e(s.status.moodWeather)}</strong><p>${e(s.status.moodNote||'记录此刻的感受')}</p></div></div>`,'summary-weather')+
  card('stats','0–100',`<div class="summary-stats">${Object.entries(LCR.statNames).map(([key,label])=>`<div class="stat-row"><span>${label}</span><span class="stat-bar"><i style="width:${s.status.stats[key]}%"></i></span><small>${s.status.stats[key]}%</small></div>`).join('')}</div>`,'summary-stats-card')+
- card('side',`${s.status.sideQuests.filter(x=>x.completed).length} / ${s.status.sideQuests.length}`,`<div class="preview-list">${s.status.sideQuests.slice(0,2).map(x=>row(x)).join('')||'<p class="empty">暂无支线任务</p>'}</div><span class="module-foot">查看全部支线 →</span>`,'summary-side')+
+ card('side',`${s.status.sideQuests.filter(x=>x.completed).length} / ${s.status.sideQuests.length}`,`<div class="preview-list">${s.status.sideQuests.slice(0,4).map(x=>row(x)).join('')||'<p class="empty">暂无支线任务</p>'}</div><span class="module-foot">查看全部支线 →</span>`,'summary-side')+
  card('rest',s.status.restMode?'已开启':'待机',`<div class="rest-summary"><span>☾</span><div><strong>${s.status.restMode?'正在休息':'给自己一点空白'}</strong><small>${e(s.status.restOption)}</small></div><b>→</b></div>`,'summary-rest');
 };
 // Overview clicks only enter their module; item actions are available one level deeper.

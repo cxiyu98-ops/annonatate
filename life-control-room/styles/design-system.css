@@ -1,9 +1,10 @@
 /* Shared tokens for the room entrance and existing console. */
 :root {
-  --font-ui: Inter, "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-ui: "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --navy: #293d49; --navy-deep: #1b2c39; --slate: #58717e;
   --cream: #f2ebdb; --paper: #f8f0de; --amber: #e6bc80;
   --sage: #8ba58c; --coral: #cb9283; --blue: #a1bdcc;
+  --lavender: #b8accb; --denim: #557889;
   --ink: #3b484c; --muted: #899792; --line: #dcd6c6;
   --radius-panel: 12px; --radius-card: 6px; --radius-control: 4px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px;

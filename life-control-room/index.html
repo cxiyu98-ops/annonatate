@@ -1,8 +1,26 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>人生后台 · Life Control Room</title><link rel="stylesheet" href="styles/main.css"><link rel="stylesheet" href="styles/room.css"></head>
-<body>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>人生后台 · Life Control Room</title><link rel="stylesheet" href="styles/main.css"><link rel="stylesheet" href="styles/room.css"><link rel="stylesheet" href="styles/design-system.css"><link rel="stylesheet" href="styles/home.css"></head>
+<body data-app-view="home">
+<section id="room-home" class="room-home" aria-label="房间首页">
+  <div class="room-system"><span><i></i> 控制室待机中</span><time id="room-clock"></time></div>
+  <div class="room-stage">
+    <div class="room-scene">
+      <img class="room-art" src="assets/images/room-home.svg" alt="暖色城市夜晚的个人房间，窗前放着三屏书桌、马克杯和绿植，猫咪在一旁休息" draggable="false">
+      <button class="room-hotspot window-hotspot" data-room-popover="environment" aria-label="查看窗外环境" aria-expanded="false" aria-controls="room-popover"><span class="hotspot-label">窗外环境</span></button>
+      <button class="room-hotspot monitor-hotspot" id="enter-control-room" aria-label="进入控制室">
+        <span class="standby-monitor standby-left" aria-hidden="true"><span class="standby-display"><i></i><b></b><em></em></span><span class="monitor-light"></span></span>
+        <span class="standby-monitor standby-center" aria-hidden="true"><span class="standby-display"><i></i><b></b><em></em></span><span class="monitor-light"></span></span>
+        <span class="standby-monitor standby-right" aria-hidden="true"><span class="standby-display"><i></i><b></b><em></em></span><span class="monitor-light"></span></span>
+        <span class="hotspot-label">进入控制室 <span>↗</span></span>
+      </button>
+      <button class="room-hotspot operator-hotspot" data-room-popover="operator" aria-label="查看当前个人状态" aria-expanded="false" aria-controls="room-popover"><img src="assets/images/operator-back.svg" alt="坐在书桌前、戴着耳机的背影" draggable="false"><span class="hotspot-label">当前状态</span></button>
+    </div>
+    <aside id="room-popover" class="room-popover" hidden aria-labelledby="room-popover-title"><header><h2 id="room-popover-title"></h2><button id="close-room-popover" type="button" aria-label="关闭信息">×</button></header><dl id="room-popover-content"></dl></aside>
+  </div>
+</section>
+<div id="dashboard-layer" hidden inert>
 <div class="city" aria-hidden="true"><div class="moon"></div><div class="skyline"></div><div class="window-frame"></div></div>
-<header class="topbar"><a class="brand" href="#" data-nav="home"><span class="brand-icon">▧</span><span><strong>人生后台<span class="brand-dot">.</span></strong><small>LIFE CONTROL ROOM</small></span></a><nav aria-label="主导航"><button data-nav="home" class="selected">首页</button><button data-nav="planning">计划台</button><button data-nav="execution">执行台</button><button data-nav="status">状态台</button></nav><div class="header-time"><span id="date"></span><strong id="clock"></strong></div></header>
+<header class="topbar"><a class="brand" href="#" data-nav="home"><span class="brand-icon">▧</span><span><strong>人生后台<span class="brand-dot">.</span></strong><small>LIFE CONTROL ROOM</small></span></a><nav aria-label="主导航"><button id="return-room-home" type="button">← 房间</button><button data-nav="home" class="selected">首页</button><button data-nav="planning">计划台</button><button data-nav="execution">执行台</button><button data-nav="status">状态台</button></nav><div class="header-time"><span id="date"></span><strong id="clock"></strong></div></header>
 <div class="room-strip"><span>个人控制室 <span class="strip-separator">/</span> 三屏总览</span><span class="global-state" id="global-status">● 控制室已就绪</span></div>
 <main class="control-room">
 <section class="monitor planning" id="planning"><header class="panel-heading"><span class="panel-icon amber">▤</span><div><h2>计划台</h2><p>收集 · 整理 · 安排</p></div><span class="panel-number">01</span></header><div class="screen"><section class="card"><div class="section-heading"><h3>今日要事</h3><span id="task-count" class="muted"></span></div><div id="tasks"></div><button class="add" data-add="task">＋ 添加任务</button></section><section class="card inbox"><div class="section-heading"><h3><span class="small-icon">▣</span> Inbox · 收集箱</h3><span class="muted" id="inbox-count"></span></div><div id="inbox"></div><button class="add" data-add="inbox">＋ 添加收集项</button></section><section class="card schedule"><div class="section-heading"><h3>日程</h3><span class="muted">今日</span></div><div id="schedule"></div><button class="add" data-add="schedule">＋ 添加日程</button></section></div><footer class="monitor-footer"><i></i><span>PLANNING STATION</span><span>•••</span></footer></section>
@@ -12,5 +30,6 @@
 <div class="desk" aria-hidden="true"><div class="plant"><i></i><i></i><span></span></div><div class="cat"><i></i><span></span></div><div class="mug"></div></div>
 <footer class="page-footer"><span>人生后台 <span class="separator">/</span> 把生活，调回自己的节奏。</span><details id="activity"><summary>◴ 活动记录 <span id="log-count"></span></summary><div id="activity-log"></div></details><span id="save-status">● 已保存在此浏览器</span></footer>
 <section id="editor" class="inline-editor" hidden aria-label="条目编辑"><form id="editor-form"><header><div><span class="eyebrow">LIFE CONTROL ROOM</span><h2 id="editor-title"></h2></div><button type="button" id="close-editor" class="icon-button" aria-label="返回模块详情">×</button></header><div id="editor-fields"></div><footer id="editor-actions"></footer></form></section><div id="toast" role="status"></div>
-<script src="scripts/state.js"></script><script src="scripts/ui.js"></script><script src="scripts/timer.js"></script><script src="scripts/screens.js"></script><script src="scripts/app.js"></script>
+</div>
+<script src="scripts/state.js"></script><script src="scripts/ui.js"></script><script src="scripts/timer.js"></script><script src="scripts/screens.js"></script><script src="scripts/app.js"></script><script src="scripts/home.js"></script>
 </body></html>

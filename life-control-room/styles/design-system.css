@@ -1,32 +1,33 @@
-/* Shared tokens for the room entrance and existing console. */
+/* Visual Redesign v1 — canonical palette and UI tokens.
+   SVG illustration fills use the same small palette, grouped by named objects. */
 :root {
-  --font-ui: "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --navy: #293d49; --navy-deep: #1b2c39; --slate: #58717e;
-  --cream: #f2ebdb; --paper: #f8f0de; --amber: #e6bc80;
-  --sage: #8ba58c; --coral: #cb9283; --blue: #a1bdcc;
-  --lavender: #b8accb; --denim: #557889;
-  --ink: #3b484c; --muted: #899792; --line: #dcd6c6;
-  --radius-panel: 12px; --radius-card: 6px; --radius-control: 4px;
-  --space-1: 4px; --space-2: 8px; --space-3: 12px;
-  --space-4: 16px; --space-5: 24px; --space-6: 32px;
-  --border-card: 1px solid #d9cdb6;
-  --focus-ring: 2px solid var(--amber);
+  --font-ui: Inter, "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-number: var(--font-ui);
+  --weight-body:400; --weight-medium:500; --weight-heading:600;
+  --ivory:#F6F0E5; --ink:#263B35; --orange:#DE7950;
+  --moss:#72866A; --sky:#82B7D5; --butter:#E9BC70; --clay:#C98C79;
+  --surface:#FFFCF5; --surface-warm:#F4E2CC; --surface-blue:#DFEBED;
+  --surface-sage:#E4E9DC; --surface-yellow:#F2E6BD; --surface-clay:#EDD9CE;
+  --text-secondary:#63746B; --text-subtle:#748075;
+  --forest:#526B55; --leaf-light:#A4B28B; --on-ink-muted:#D4DECE;
+  --line-strong:#263B354D; --shadow-monitor:2px 5px 0 #263B3526;
+  --line:#263B3526; --line-soft:#263B3514;
+  --radius-panel:8px; --radius-card:5px; --radius-control:4px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --space-5:24px; --space-6:32px; --space-7:48px;
+  --shadow-card:none; --shadow-popover:0 8px 24px #263B351A;
+  --border-card:1px solid var(--line-soft); --border-control:1px solid var(--line);
+  --focus-ring:2px solid var(--orange); --motion-short:160ms;
+  /* Compatibility aliases keep every existing module and data binding intact. */
+  --navy:var(--ink); --navy-deep:#20352F; --slate:var(--text-secondary);
+  --cream:var(--ivory); --paper:var(--surface); --amber:var(--butter);
+  --sage:var(--moss); --coral:var(--clay); --blue:var(--sky);
+  --muted:var(--text-subtle); --denim:#598497; --lavender:#B0B5B0;
 }
-body, button, input, select, textarea { font-family: var(--font-ui); }
-.monitor { border-radius: var(--radius-panel); }
-.overview-module, .inline-editor, .module-content > .card,
-.module-content > .quest-card, .module-content > .timer-card,
-.module-content > .rest-card { border-radius: var(--radius-card); }
-.overview-module, .inline-editor { border: var(--border-card); }
-.primary, .secondary, .danger, .rest-button, nav button,
-.inline-editor .field input, .inline-editor .field select,
-.inline-editor .field textarea { border-radius: var(--radius-control); }
-.panel-icon { border-radius: var(--radius-control); font-style: normal; }
-button:focus-visible, a:focus-visible, summary:focus-visible { outline: var(--focus-ring); outline-offset: 4px; }
-.primary { background: var(--sage); color: #243c31; }
-.secondary { background: #e3e3d8; color: #5b7069; }
-.module-heading, .section-heading { gap: var(--space-2); }
-.module-heading i { font-family: var(--font-ui); font-style: normal; }
-.screen-overview { gap: var(--space-3); }
-.overview-module { padding: var(--space-4); }
-@media (max-height:800px) and (min-width:981px) { .overview-module { padding:var(--space-3); } }
+body,button,input,select,textarea { font-family:var(--font-ui);font-variant-numeric:tabular-nums; }
+button,input,select,textarea { font-size:inherit; }
+button:focus-visible,a:focus-visible,summary:focus-visible { outline:var(--focus-ring);outline-offset:4px; }
+.primary,.secondary,.danger,.rest-button,nav button { border-radius:var(--radius-control); }
+.primary { background:var(--orange);color:var(--surface); }
+.secondary { background:var(--surface-sage);color:var(--ink); }
+.pixel-icon { shape-rendering:geometricPrecision; }

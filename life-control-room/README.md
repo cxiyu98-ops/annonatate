@@ -30,9 +30,9 @@
 - `scripts/home.js`：显示器实时摘要、进入/返回、人物和窗户信息卡；只维护视图状态，不复制业务数据。
 - `scripts/screens.js`：`consoleMeta` 定义控制台身份；`focusScreen()` 确保只显示一台；`renderOverviews()` 定义每台的模块布局内容；原有模块详情与编辑器管理仍在此。
 - `styles/design-system.css`：统一 Noto Sans SC / 系统无衬线字体、共享颜色、圆角与间距变量。
-- `styles/console.css`：三台显示器摘要、控制台身份色、卡片标题条、像素角标，以及 `#planning / #execution / #status .screen-overview` 各自的 CSS Grid 布局。所选显示器的缩放原点、点亮样式也在这里。
+- `styles/console.css`：三台显示器摘要、控制台身份色、原有卡片布局与层级基础，以及 `#planning / #execution / #status .screen-overview` 各自的 CSS Grid 布局。所选显示器的缩放原点、点亮样式也在这里。
 - `styles/home.css`：保留的房间场景、热点、信息卡，以及 `.entering-room` / `.console-visible` / `.leaving-room` 的基础过渡。
-- `assets/icons/console-icons.svg`：同一套像素 SVG 图标；房间预览、完整控制台和模块标题复用。
+- `assets/icons/console-icons.svg`：同一套几何线性 SVG 图标；房间预览、完整控制台和模块标题复用。
 - `assets/images/room-home.svg`、`operator-back.svg`：既有房间和人物插画，本次保留。
 - `scripts/ui.js`：模块渲染与共享编辑字段。
 - `scripts/state.js`：`LCR.seed()` 示例内容、来源引用、活动日志和保存逻辑。
@@ -50,3 +50,20 @@ localStorage 键仍为 `life-control-room.v1`，模型和已有业务状态没�
 ## 验证
 
 Chromium + Playwright 已验证：三台真实摘要和独立入口、每次仅一台可见、约 850ms 过渡、减少动态效果、任务 CRUD 与来源同步、跨控制台草稿、计时跨视图连续运行与刷新恢复、主线、Inbox、日程校验、情绪/状态、支线/休息、localStorage，以及 1440/1100/900/390px 布局，无 JavaScript 运行错误。浏览器验证在本地 HTTP 完成；当前云浏览器不支持 file:// 导航，因此没有宣称验证 file://。
+
+
+## Visual Redesign v1：暖色日式编辑插画
+
+本轮仅改变视觉和与画面一致的描述文字。所有模块、导航、数据绑定和 localStorage 模型保留；state/app/screens/timer/ui 脚本未改动。home.js 仅把信息卡中的静态夜景描述改为日光插画描述。
+
+- `styles/design-system.css`：统一主题变量。`--ivory / --ink / --orange / --moss / --sky / --butter / --clay` 是基础色；`--surface-*` 是模块色块；`--font-ui / --font-number / --weight-*` 控制文字；`--space-* / --radius-* / --line-* / --shadow-*` 控制间距、圆角、边界和阴影。
+- `styles/editorial.css`：最后加载的视觉层，统一房间、屏幕摘要、三台控制台、详情和编辑器。保留既有 Grid 模块结构与响应式断点，不增加新功能。
+- `assets/images/room-home.svg`：按建筑、光影、窗景、家具与物件分组的平面插画，硬边投影表达右上方日光。显示器仍是可交互 HTML 元素，人物仍是独立 SVG。
+- `assets/images/operator-back.svg`：简化的人物与椅子背影；透明图像边缘不占用显示器点击区域。
+- `assets/images/editorial-hills.svg`：仅用于主线卡片的小幅色块插画，不重复铺设装饰图。
+- `assets/icons/console-icons.svg`：复用原 symbol ID 的统一几何线性图标，保留全部现有绑定。
+- `index.html`：只加载新视觉样式并更新插画替代文字；原交互 DOM 与 ID 保持。
+
+SVG 物件填色采用同一套主题色。由于外链 SVG 不继承网页 CSS 变量，修改插画时在对应命名分组内调整填色；不需要编辑导航或业务脚本。
+
+验证包含完整 Chromium 原功能回归、房间人物/窗户信息卡、取消编辑后状态完全一致、1440/1100/900/390px 布局、SVG XML 合法性及业务脚本校验值比对。

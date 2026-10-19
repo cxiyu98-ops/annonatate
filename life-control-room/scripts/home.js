@@ -37,7 +37,7 @@
       ['当前任务', LCR.current()?.title || '暂无当前任务'],
       ['情绪天气', LCR.state.status.moodWeather],
       ['休息模式', LCR.state.status.restMode ? '已开启' : '未开启']
-    ] : [['当前时间', timeText()], ['视觉模式', '城市夜晚'], ['城市 / 天气', '城市夜景 · 天气信息暂未接入']];
+    ] : [['当前时间', timeText()], ['视觉模式', '日光插画'], ['城市 / 天气', '城市景观 · 天气信息暂未接入']];
     document.getElementById('room-popover-title').textContent = type === 'operator' ? '当前状态' : '窗外环境';
     document.getElementById('room-popover-content').innerHTML = values.map(([key, value], i) =>
       `<div><dt>${key}</dt><dd${type === 'environment' && i === 0 ? ' id="environment-time"' : ''}>${e(value)}</dd></div>`).join('');

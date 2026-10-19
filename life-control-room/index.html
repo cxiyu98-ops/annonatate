@@ -1,18 +1,18 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>人生后台 · Life Control Room</title><link rel="stylesheet" href="styles/main.css"><link rel="stylesheet" href="styles/room.css"><link rel="stylesheet" href="styles/design-system.css"><link rel="stylesheet" href="styles/home.css"><link rel="stylesheet" href="styles/console.css"></head>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>人生后台 · Life Control Room</title><link rel="stylesheet" href="styles/main.css"><link rel="stylesheet" href="styles/room.css"><link rel="stylesheet" href="styles/design-system.css"><link rel="stylesheet" href="styles/home.css"><link rel="stylesheet" href="styles/console.css"><link rel="stylesheet" href="styles/editorial.css"></head>
 <body data-app-view="home">
 <section id="room-home" class="room-home" aria-label="房间首页">
   <div class="room-system"><span><i></i> 控制室待机中</span><time id="room-clock"></time></div>
   <div class="room-stage">
     <div class="room-scene">
-      <img class="room-art" src="assets/images/room-home.svg" alt="暖色城市夜晚的个人房间，窗前放着三屏书桌、马克杯和绿植，猫咪在一旁休息" draggable="false">
+      <img class="room-art" src="assets/images/room-home.svg" alt="日光照入的插画工作室，窗前有三台显示器、木桌、马克杯与一盆植物，猫咪在桌边休息" draggable="false">
       <button class="room-hotspot window-hotspot" data-room-popover="environment" aria-label="查看窗外环境" aria-expanded="false" aria-controls="room-popover"><span class="hotspot-label">窗外环境</span></button>
       <div class="monitor-setup">
         <button class="room-hotspot standby-monitor standby-left" data-enter-console="planning" aria-label="进入计划台"><span class="standby-display"><span class="monitor-preview" id="preview-planning"></span></span><span class="monitor-light" aria-hidden="true"></span><span class="hotspot-label">进入计划台 ↗</span></button>
         <button class="room-hotspot standby-monitor standby-center" data-enter-console="execution" aria-label="进入执行台"><span class="standby-display"><span class="monitor-preview" id="preview-execution"></span></span><span class="monitor-light" aria-hidden="true"></span><span class="hotspot-label">进入执行台 ↗</span></button>
         <button class="room-hotspot standby-monitor standby-right" data-enter-console="status" aria-label="进入状态台"><span class="standby-display"><span class="monitor-preview" id="preview-status"></span></span><span class="monitor-light" aria-hidden="true"></span><span class="hotspot-label">进入状态台 ↗</span></button>
       </div>
-      <button class="room-hotspot operator-hotspot" data-room-popover="operator" aria-label="查看当前个人状态" aria-expanded="false" aria-controls="room-popover"><img src="assets/images/operator-back.svg" alt="坐在书桌前、戴着耳机的背影" draggable="false"><span class="hotspot-label">当前状态</span></button>
+      <button class="room-hotspot operator-hotspot" data-room-popover="operator" aria-label="查看当前个人状态" aria-expanded="false" aria-controls="room-popover"><img src="assets/images/operator-back.svg" alt="坐在书桌前、头发挽起的人物背影" draggable="false"><span class="hotspot-label">当前状态</span></button>
     </div>
     <aside id="room-popover" class="room-popover" hidden aria-labelledby="room-popover-title"><header><h2 id="room-popover-title"></h2><button id="close-room-popover" type="button" aria-label="关闭信息">×</button></header><dl id="room-popover-content"></dl></aside>
   </div>
